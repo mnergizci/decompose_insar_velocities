@@ -1,6 +1,6 @@
 function [x_regrid,y_regrid,xx_regrid,yy_regrid,vel_regrid,vstd_regrid,...
-    mask_regrid,compE_regrid,compU_regrid,compN_regrid,gnss_E,gnss_N,gnss_sE,gnss_sN] ...
-    = unify_grids(par,lon,lat,lon_comp,lat_comp,dx,dy,vel,vstd,mask,compE,compU,compN,gnss)
+    mask_regrid,compE_regrid,compU_regrid,compN_regrid,gnss_E,gnss_N,gnss_sE,gnss_sN, gnss_U, gnss_sU, hgt_regrid] ...
+    = unify_grids(par,lon,lat,lon_comp,lat_comp,dx,dy,vel,vstd,mask,compE,compU,compN,gnss, hgt)
 %=================================================================
 % function unify_grids()
 %-----------------------------------------------------------------
@@ -51,6 +51,7 @@ vel_regrid = single(zeros([size(xx_regrid) nframes]));
 vstd_regrid = single(zeros(size(vel_regrid))); mask_regrid = single(zeros(size(vel_regrid)));
 compE_regrid = single(zeros(size(vel_regrid))); compN_regrid = single(zeros(size(vel_regrid)));
 compU_regrid = single(zeros(size(vel_regrid)));
+hgt_regrid = single(zeros(size(vel_regrid)));
 
 for ii = 1:nframes
     
@@ -87,6 +88,11 @@ for ii = 1:nframes
     compU_regrid(yind_min:yind_max,xind_min:xind_max,ii) ...
         = interp2(xx,yy,compU{ii},xx_regrid(yind_min:yind_max,xind_min:xind_max),...
         yy_regrid(yind_min:yind_max,xind_min:xind_max));
+    if par.save_hgt == 1 || par.remove_linear_APS > 0
+        hgt_regrid(yind_min:yind_max,xind_min:xind_max,ii) ...
+            = interp2(xx,yy,hgt{ii},xx_regrid(yind_min:yind_max,xind_min:xind_max),...
+            yy_regrid(yind_min:yind_max,xind_min:xind_max));
+    end
     
     % report progress
     if (mod(ii,round(nframes./10))) == 0
@@ -121,17 +127,35 @@ end
 % resample gnss
 if isfield(gnss,'x')
     [xx_gnss,yy_gnss] = meshgrid(gnss.x,gnss.y);
-    gnss_E = interp2(xx_gnss,yy_gnss,gnss.E,xx_regrid,yy_regrid);
-    gnss_N = interp2(xx_gnss,yy_gnss,gnss.N,xx_regrid,yy_regrid);
+    gnss_E = interp2(xx_gnss,yy_gnss,gnss.E,xx_regrid,yy_regrid, 'linear',0);
+    gnss_N = interp2(xx_gnss,yy_gnss,gnss.N,xx_regrid,yy_regrid, 'linear',0);
+    if isfield(gnss, 'U')
+        gnss_U = interp2(xx_gnss,yy_gnss,gnss.U,xx_regrid,yy_regrid, 'linear',0);
+    else
+        gnss_U = [];
+    end
     
     % resample gnss uncertainties if using
     if par.gnss_uncer == 1
-        gnss_sE = interp2(xx_gnss,yy_gnss,gnss.sE,xx_regrid,yy_regrid);
-        gnss_sN = interp2(xx_gnss,yy_gnss,gnss.sN,xx_regrid,yy_regrid);
+        gnss_sE = interp2(xx_gnss,yy_gnss,gnss.sE,xx_regrid,yy_regrid, 'linear',1e6);
+        gnss_sN = interp2(xx_gnss,yy_gnss,gnss.sN,xx_regrid,yy_regrid, 'linear',1e6);
+        if isfield(gnss, 'U')
+            gnss_sU = interp2(xx_gnss,yy_gnss,gnss.sU,xx_regrid,yy_regrid, 'linear',1e6);
+        else
+            gnss_sU = [];
+        end
     else
         gnss_sE = [];
         gnss_sN = [];
+        gnss_sU = [];
     end
+elseif isempty(gnss)
+    gnss_E = [];
+    gnss_N = [];
+    gnss_sE = [];
+    gnss_sN = [];
+    gnss_U = [];
+    gnss_sU = [];
 end
 
 %% format

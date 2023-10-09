@@ -1,10 +1,10 @@
-function plt_asc_desc_cells(par,lon,lat,data,mask,asc_frames_ind,desc_frames_ind,cpt,clim,borders,fig_title)
+function plt_asc_desc_cells(par,lon,lat,data,mask,asc_frames_ind,desc_frames_ind,cpt,clim,borders,fig_title,mask_override)
 %=================================================================
 % function preview_input_vels(cfgfile)
 %-----------------------------------------------------------------
 % Plot input velocities.
-%                                                                  
-% INPUT:                                                           
+%
+% INPUT:
 %   lon,lat: cell arrays containing coordinate vectors for each frame
 %   data: cell array containing 2D data arrays for each frame (vel, vstd)
 %   mask: cell array containing the 2D mask arrays for each frame
@@ -16,15 +16,19 @@ function plt_asc_desc_cells(par,lon,lat,data,mask,asc_frames_ind,desc_frames_ind
 %   fig_title: title for main figure
 %
 % Andrew Watson     28-04-2023
-%                                                                  
+%
 %=================================================================
 
 % set plotting parameters
-lonlim = [min(cellfun(@min,lon)) max(cellfun(@max,lon))]; 
+lonlim = [min(cellfun(@min,lon)) max(cellfun(@max,lon))];
 latlim = [min(cellfun(@min,lat)) max(cellfun(@max,lat))];
 
+if nargin < 12
+    mask_override = 0;
+end
+
 % temporarily apply mask for plotting
-if par.use_mask == 1
+if par.use_mask == 1 && mask_override == 1
     for ii = 1:length(data)
         data{ii}(mask{ii}==0) = nan;
         % data{ii} = data{ii} - median(data{ii},'all','omitnan');
@@ -36,17 +40,31 @@ f.Position([1 3 4]) = [600 1600 600];
 t = tiledlayout(1,2,'TileSpacing','compact');
 title(t,fig_title)
 
-% plot ascending tracks
-t(1) = nexttile; hold on
-plt_data(lon(asc_frames_ind),lat(asc_frames_ind),data(asc_frames_ind),...
-    lonlim,latlim,clim,'Ascending (mm/yr)',[],borders)
-colormap(t(1),cpt)
-
-% plot descending tracks
-t(2) = nexttile; hold on
-plt_data(lon(desc_frames_ind),lat(desc_frames_ind),data(desc_frames_ind),...
-    lonlim,latlim,clim,'Descending (mm/yr)',[],borders)
-colormap(t(2),cpt)
+if iscell(data)
+    % plot ascending tracks
+    t(1) = nexttile; hold on
+    plt_data(lon(asc_frames_ind),lat(asc_frames_ind),data(asc_frames_ind),...
+        lonlim,latlim,clim,'Ascending (mm/yr)',[],borders)
+    colormap(t(1),cpt)
+    
+    % plot descending tracks
+    t(2) = nexttile; hold on
+    plt_data(lon(desc_frames_ind),lat(desc_frames_ind),data(desc_frames_ind),...
+        lonlim,latlim,clim,'Descending (mm/yr)',[],borders)
+    colormap(t(2),cpt)
+else
+    % plot ascending tracks
+    t(1) = nexttile; hold on
+    plt_data(lon(asc_frames_ind),lat(asc_frames_ind),data(:, :, asc_frames_ind),...
+        lonlim,latlim,clim,'Ascending (mm/yr)',[],borders)
+    colormap(t(1),cpt)
+    
+    % plot descending tracks
+    t(2) = nexttile; hold on
+    plt_data(lon(desc_frames_ind),lat(desc_frames_ind),data(:, :, desc_frames_ind),...
+        lonlim,latlim,clim,'Descending (mm/yr)',[],borders)
+    colormap(t(2),cpt)
+end
 
 clear vel_tmp
 

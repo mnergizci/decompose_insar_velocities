@@ -12,19 +12,35 @@ function [lon,lat,data,dx,dy] = read_geotiff(tif_file,out_type)
 % Andrew Watson     24-08-2021
 
 % open geotiff
-[data,georef] = readgeoraster(tif_file);
-
+try
+    [data,georef] = readgeoraster(tif_file);
+catch
+    error(['Cannot open ', tif_file])
+    return
+end
+    
 % convert to double
 data = double(data);
 
+try
 if strcmp(georef.RasterInterpretation,'cells')
     disp('Tif is in cell format, converting to postings.')
-    dx = georef.CellExtentInLongitude;
-    dy = georef.CellExtentInLatitude;
-    latlim = [georef.LatitudeLimits(1)+dy/2 georef.LatitudeLimits(2)-dy/2];
-    lonlim = [georef.LongitudeLimits(1)+dx/2 georef.LongitudeLimits(2)-dx/2];
+    if strcmpi(georef.CoordinateSystemType,'geographic')
+        dx = georef.CellExtentInLongitude;
+        dy = georef.CellExtentInLatitude;
+        latlim = [georef.LatitudeLimits(1)+dy/2 georef.LatitudeLimits(2)-dy/2];
+        lonlim = [georef.LongitudeLimits(1)+dx/2 georef.LongitudeLimits(2)-dx/2];
+    else  % Sometimes GDAL writes the tifs slightly differently.....
+        dx = georef.CellExtentInWorldX;
+        dy = georef.CellExtentInWorldY;
+        latlim = [georef.YWorldLimits(1)+dy/2 georef.YWorldLimits(2)-dy/2];
+        lonlim = [georef.XWorldLimits(1)+dx/2 georef.XWorldLimits(2)-dx/2];
+    end
     rasterSize = georef.RasterSize;
     georef = georefpostings(latlim,lonlim,rasterSize);
+end
+catch err
+    throw(err)
 end
 
 % grid spacing

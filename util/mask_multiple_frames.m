@@ -8,22 +8,22 @@
 
 disp('Beginning run')
 
-config_file = '/scratch/eearw/decomp_frame_vels/conf/iran_gacos.conf';
+config_file = '/nfs/a285/homes/eejdm/DIV/SouthIsland/default_lpc3rad/DIV.conf';
 
 addpath ../plotting
 
 %% toggles
 
-plt_single_frame = 0;
+plt_single_frame = 2;
 plt_single_indices = 0;
 new_masks = 1;
-plt_new_masked_vels = 1;
-plt_asc_desc_masks = 1;
+plt_new_masked_vels = 0;
+plt_asc_desc_masks = 0;
 
 %% setup
 
 % coh_avg, n_unw, vstd, maxTlen, n_gap, stc, n_ifg_noloop, n_loop_err, resid_rms
-thresholds = [0.2 0 20 3 0 100 200 75 3];
+thresholds = [0.05 2.5 1000 7.5 5 5 10000 10000 20];
 
 file_names = {'vel.geo.tif' 'coh_avg.geo.tif' 'n_unw.geo.tif' 'vstd.geo.tif' 'maxTlen.geo.tif' 'n_gap.geo.tif'...
      'stc.geo.tif' 'n_ifg_noloop.geo.tif' 'n_loop_err.geo.tif' 'resid_rms.geo.tif'};
@@ -103,7 +103,7 @@ for ii = 1:nframes
     end
     
     % load mask
-    if par.usemask == 1
+    if par.use_mask == 1
         namestruct = dir([insarpar.dir{ii} '*' insarpar.id_mask '*']);
         [~,~,mask{ii},~,~] = read_geotiff([insarpar.dir{ii} namestruct.name]);
     end
@@ -122,7 +122,7 @@ else
 end
 
 % gnss vels
-load(par.gnss_file);
+%load(par.gnss_file);
 
 % borders
 if par.plt_borders == 1

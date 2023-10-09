@@ -1,5 +1,5 @@
 function [lon,lat,dx,dy,lon_comp,lat_comp,vel,vstd,compE,compN,compU,mask,poly_mask,frames,...
-    asc_frames_ind,desc_frames_ind,fault_trace,gnss,borders] = load_inputs(par,insarpar)
+    asc_frames_ind,desc_frames_ind,fault_trace,gnss,borders, hgt] = load_inputs(par,insarpar)
 %=================================================================
 % function [] = load_inputs()
 %-----------------------------------------------------------------
@@ -47,7 +47,7 @@ lon_comp = cell(size(lon)); lat_comp = cell(size(lon));
 dx = cell(size(lon)); dy = cell(size(lon));
 vel = cell(size(lon)); vstd = cell(size(lon)); mask = cell(size(lon));
 compE = cell(size(lon)); compN = cell(size(lon)); compU = cell(size(lon));
-
+hgt = cell(size(lon));
 %% load insar
 
 % for each velocity map
@@ -73,6 +73,10 @@ for ii = 1:nframes
     % load velocity errors
     namestruct = dir([insarpar.dir{ii} '*' insarpar.id_vstd '*']);
     [~,~,vstd{ii},~,~] = read_geotiff([insarpar.dir{ii} namestruct.name],'single');
+    
+    if strcmpi(insarpar.id_vstd, 'n_unw.geo.tif');
+        vstd{ii} = 1 ./ vstd{ii};
+    end
 
     % load East, North, and Up components
     namestruct = dir([insarpar.dir{ii} '*' insarpar.id_e '*']);
@@ -96,6 +100,11 @@ for ii = 1:nframes
     else
         poly_mask = [];      
     end
+    
+    if par.save_hgt == 1 || par.remove_linear_APS > 0
+        namestruct = dir([insarpar.dir{ii} '*' insarpar.id_hgt '*']);
+       [~,~,hgt{ii},~,~] = read_geotiff([insarpar.dir{ii} namestruct.name],'single');
+    end    
     
 end
 
@@ -126,6 +135,9 @@ elseif par.ref2gnss == 1 && ismember(par.decomp_method,0:2)
 elseif par.ref2gnss == 2
     load_stations = 0; load_fields = 1;
     
+% ref to pixel, include GNSS in inversion
+elseif par.ref2gnss == 3 && ismember(par.decomp_method,[0:2,4])
+    load_stations = 0; load_fields = 1;
 % anything else
 else
     load_stations = 0; load_fields = 0;

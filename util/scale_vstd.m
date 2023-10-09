@@ -111,7 +111,8 @@ rms_misfit = rms(vstd(:)-point_fit,'omitnan');
 
 if par.plt_scale_vstd_indv == 1
 
-    clim = [min(vstd(:)) max(vstd(:))];
+    % clim = [min(vstd(:)) max(vstd(:))];
+    clim = [0 ceil(prctile(vstd(:), 95) / 5) * 5];
 
     f = figure();
     f.Position([1 3 4]) = [100 1400 1000];

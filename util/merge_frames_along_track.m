@@ -1,5 +1,5 @@
-function [track_vel,track_compE,track_compN,track_compU,track_vstd,unique_tracks] ...
-    = merge_frames_along_track(par,cpt,x,y,vel,frames,compE,compN,compU,vstd)
+function [track_vel,track_compE,track_compN,track_compU,track_vstd,unique_tracks, track_hgt] ...
+    = merge_frames_along_track(par,cpt,x,y,vel,frames,compE,compN,compU,vstd, hgt)
 %=================================================================
 % function merge_frames_along_track()
 %-----------------------------------------------------------------
@@ -44,6 +44,7 @@ unique_tracks = unique(tracks);
 track_vel = nan([size(vel,[1 2]) length(unique_tracks)]);
 track_compE = nan(size(track_vel)); track_compN = nan(size(track_vel));
 track_compU = nan(size(track_vel)); track_vstd = nan(size(track_vel));
+track_hgt = nan([size(hgt,[1 2]) length(unique_tracks)]);
 
 % account for frames that merge into more than one veocity field as a 
 % result of empty overlaps
@@ -173,6 +174,9 @@ for ii = 1:length(unique_tracks)
             % merge pixel uncertainties
             track_vstd(:,:,ind_count) = 1 ./ sqrt( sum(track_weights,3,'omitnan') );
             
+            % merge hgts
+            track_hgt(:,:,ind_count) = mean(hgt(:,:,track_ind),3,'omitnan');
+            
         else
             % number of segments
             n_seg = size(multi_segment,1) + 1;
@@ -186,6 +190,7 @@ for ii = 1:length(unique_tracks)
             track_compN = cat(3,track_compN,nan([size(vel,[1 2]) n_seg-1]));
             track_compU = cat(3,track_compU,nan([size(vel,[1 2]) n_seg-1]));
             track_vstd = cat(3,track_vstd,nan([size(vel,[1 2]) n_seg-1]));
+            track_hgt = cat(3,track_hgt,nan([size(vel,[1 2]) n_seg-1]));
             
             % duplicate track name
             repelem_vec = ones(1,length(unique_tracks));
@@ -211,6 +216,9 @@ for ii = 1:length(unique_tracks)
                     = mean(compN(:,:,track_ind_seg),3,'omitnan');
                 track_compU(:,:,ind_count+ind_count_inc) ...
                     = mean(compU(:,:,track_ind_seg),3,'omitnan');
+                
+                track_hgt(:,:,ind_count+ind_count_inc) ...
+                    = mean(hgt(:,:,track_ind_seg),3,'omitnan');
                 
                 % weighted uncertainties
                 track_vstd(:,:,ind_count+ind_count_inc) = 1 ./ sqrt( sum(track_weights,3,'omitnan') );
@@ -278,6 +286,7 @@ end
 if par.merge_tracks_along == 1
     track_vel = vel; track_vstd = vstd;
     track_compE = compE; track_compN = compN; track_compU = compU;
+    track_hgt = hgt;
 end
 
 %% plot merged tracks

@@ -1,8 +1,8 @@
-function [vel, gnss_los] = ref_to_gnss_fields(par,cpt,xx,yy,vel,compE,compN,gnss_E,gnss_N,asc_frames_ind,desc_frames_ind,insar_id)
+function [vel, gnss_los] = ref_to_gnss_fields(par,cpt,xx,yy,vel,compE,compN,compU, gnss_E,gnss_N, gnss_U, asc_frames_ind,desc_frames_ind,insar_id, hgt)
 %=================================================================
 % function ref_to_gnss()
 %-----------------------------------------------------------------
-% Tie InSAR velocities into a GNSS refernce frame.
+% Tie InSAR velocities into a GNSS reference frame.
 % Largely based on the method from Weiss et al. (2020).
 % Main steps are:
 %   - interpolate GNSS stations velocities into continuous fields
@@ -52,6 +52,11 @@ if ~ismissing(par.use_stored_ref_planes)
         else
             % InSAR IDs are the same, ensure that they are in the same order
             [~,~,sort_order] = intersect(resids.insar_id,insar_id,'stable');
+            if length(sort_order) ~= length(insar_id);
+                fprintf('CAUTION: Some along-track frames have not been merged so order cannot be assigned\n')
+                fprintf('         Just going to assume that you havent changed the input order instead....\n')
+                sort_order = 1:nframes;
+            end                
         end
         gnss_resid_plane = resids.gnss_resid_plane(:, :, sort_order);
         gnss_los = resids.gnss_los(:, :, sort_order);
@@ -78,22 +83,69 @@ for ii = 1:nframes
         continue
     end
     if ismissing(par.use_stored_ref_planes)
+
+        % for plotting
+        if par.plt_ref_gnss_indv == 1
+            vel_orig = vel(:,:,ii);
+        end
+
         % convert gnss fields to los
-        gnss_los(:,:,ii) = (gnss_E.*compE(:,:,ii)) + (gnss_N.*compN(:,:,ii));
-        
+        if isempty(gnss_U)
+            gnss_los(:,:,ii) = (gnss_E.*compE(:,:,ii)) + (gnss_N.*compN(:,:,ii));
+        else
+            gnss_los(:,:,ii) = (gnss_E.*compE(:,:,ii)) + (gnss_N.*compN(:,:,ii)) + (gnss_U.*compU(:,:,ii));
+        end
+
         % calculate residual
         vel_tmp = vel(:,:,ii);
-        
+
         % mask after deramping (deramp isn't carried forward)
         % use a hardcoded 10 mm/yr limit to remove large signals (mainly
         % subsidence and seismic)
         vel_deramp = deramp(x,y,vel_tmp);
         vel_deramp = vel_deramp - mean(vel_deramp(:),'omitnan');
         vel_mask = vel_deramp > par.refmask_max | vel_deramp < par.refmask_min;
-        
+
         vel_tmp(vel_mask) = nan;
-        
+
         gnss_resid = vel_tmp - gnss_los(:,:,ii);
+
+        if par.remove_linear_APS == 1
+            % Find APS component from LOS
+            los_resid = gnss_resid;
+            gnss_xx = xx(~isnan(los_resid));
+            gnss_yy = yy(~isnan(los_resid));
+            hgt_tmp = hgt(:,:,ii);
+            hgt_tmp = hgt_tmp(~isnan(los_resid));
+            los_resid = los_resid(~isnan(los_resid));
+
+            % Calculate linear APS from residuals
+            G_aps = [ones(length(gnss_xx),1) hgt_tmp];
+            m_aps = (G_aps'*G_aps)^-1*G_aps'*los_resid;
+            aps_corr = m_aps(2) .* hgt(:,:,ii);
+%             if par.plt_ref_gnss_indv == 1
+%             figure(), hold on
+%             plot(hgt_tmp,los_resid,'.')
+%             plot(hgt_tmp, los_resid - m_aps(2) * hgt_tmp,'.')
+%             legend([{'Original'},{'APS Corrected'}])
+%             end
+
+            % Subtract this correction from original velocity, reclaculate
+            % residual
+            vel(:,:,ii) = vel(:,:,ii) - aps_corr;
+            vel_tmp = vel(:,:,ii);
+            m_aps = m_aps(2);
+
+            % mask after deramping (deramp isn't carried forward)
+            % use a hardcoded 10 mm/yr limit to remove large signals (mainly
+            % subsidence and seismic)
+            vel_deramp = deramp(x,y,vel_tmp);
+            vel_deramp = vel_deramp - mean(vel_deramp(:),'omitnan');
+            vel_mask = vel_deramp > par.refmask_max | vel_deramp < par.refmask_min;
+
+            vel_tmp(vel_mask) = nan;
+            gnss_resid = vel_tmp - gnss_los(:,:,ii);
+        end
         
         % method switch
         switch par.ref_type
@@ -102,6 +154,8 @@ for ii = 1:nframes
                 % remove nans
                 gnss_xx = xx(~isnan(gnss_resid));
                 gnss_yy = yy(~isnan(gnss_resid));
+                hgt_tmp = hgt(:,:,ii);
+                hgt_tmp = hgt_tmp(~isnan(gnss_resid));
                 gnss_resid = gnss_resid(~isnan(gnss_resid));
                 
                 % centre coords
@@ -124,9 +178,17 @@ for ii = 1:nframes
                 elseif par.ref_poly_order == 2 % 2nd order
                     G_resid = [ones(length(gnss_xx),1) gnss_xx gnss_yy gnss_xx.*gnss_yy ...
                         gnss_xx.^2 gnss_yy.^2];
+                    if par.remove_linear_APS == 2
+                        G_resid(:,7) = hgt_tmp;
+                    end                    
                     m_resid = (G_resid'*G_resid)^-1*G_resid'*gnss_resid;
                     gnss_resid_plane(:,:,ii) = m_resid(1) + m_resid(2).*all_xx + m_resid(3).*all_yy ...
                         + m_resid(4).*all_xx.*all_yy + m_resid(5).*all_xx.^2 + m_resid(6).*all_yy.^2;
+                    if par.remove_linear_APS == 2
+                        aps_corr = m_resid(7) .* hgt(:,:,ii);
+                        vel(:,:,ii) = vel(:,:,ii) - aps_corr;
+                        m_aps = m_resid(7);
+                    end
                 end
                 
             case 2 % filtering
@@ -148,19 +210,18 @@ for ii = 1:nframes
                 gnss_resid_plane(:,:,ii) = gnss_resid_filtered;
         end
     end
-    
-    % for plotting
-    if par.plt_ref_gnss_indv == 1
-        vel_orig = vel(:,:,ii);
-    end
-    
+
     % mask resid with vel (just for plotting)
     vel_mask = single(~isnan(vel(:,:,ii)));
     vel_mask(vel_mask==0) = nan;
     gnss_resid_plane(:,:,ii) = gnss_resid_plane(:,:,ii) .* vel_mask;
     
     % remove from insar
-    vel(:,:,ii) = vel(:,:,ii) - gnss_resid_plane(:,:,ii);
+    if par.decomp_method ~= 4
+        vel(:,:,ii) = vel(:,:,ii) - gnss_resid_plane(:,:,ii);
+    else
+        vel(:,:,ii) = vel(:,:,ii) - gnss_los(:, :, ii) - gnss_resid_plane(:,:,ii);
+    end
     
     % optional plotting
     if par.plt_ref_gnss_indv == 1
@@ -172,14 +233,42 @@ for ii = 1:nframes
         lonlim = x([x_ind(1) x_ind(end)]); latlim = y([y_ind(1) y_ind(end)]);
         
         f = figure();
-        f.Position([1 3 4]) = [600 1600 600];
-        tiledlayout(1,3,'TileSpacing','compact');
+        if par.remove_linear_APS == 0
+            f.Position([1 3 4]) = [600 1600 600];
+            tiledlayout(1,3,'TileSpacing','compact');
+        else
+            f.Position([1 3 4]) = [600 2000 1200];
+            tiledlayout(2,3,'TileSpacing','compact');
+        end
         
         nexttile; hold on
         imagesc(x,y,vel_orig,'AlphaData',~isnan(vel_orig)); axis xy
         xlim(lonlim); ylim(latlim);
         colorbar; colormap(cpt.vik); caxis(clim)
         title('Original InSAR vel')
+        
+        if par.remove_linear_APS > 0
+            nexttile; hold on
+            imagesc(x,y,aps_corr,'AlphaData',~isnan(vel_orig)); axis xy
+            xlim(lonlim); ylim(latlim);
+            colorbar; colormap(cpt.vik); caxis([-10 10])
+            title(sprintf('APS Component (%.2f mm/yr/km)', m_aps*1000))
+            
+            nexttile; hold on
+            hgt_tmp = hgt(:,:,ii);
+            plot(hgt_tmp(:), vel_orig(:), '.')
+            plot(hgt_tmp(:), vel_orig(:)-aps_corr(:), '.')
+            title(sprintf('APS Correction', m_aps*1000))
+            legend([{'Original'},{'APS Corrected'}])
+            xlabel('Topography (m)')
+            ylabel('Velocity (mm/yr)')
+            
+            nexttile; hold on
+            imagesc(x,y,vel_orig - aps_corr,'AlphaData',~isnan(vel_orig)); axis xy
+            xlim(lonlim); ylim(latlim);
+            colorbar; colormap(cpt.vik); caxis(clim)
+            title(sprintf('APS Corrected', m_aps*1000))
+        end
         
         nexttile; hold on
         imagesc(x,y,gnss_resid_plane(:,:,ii),'AlphaData',~isnan(gnss_resid_plane(:,:,ii))); axis xy
@@ -257,6 +346,12 @@ if par.grd_ref_gnss_los == 1
         [y, x] = ind2sub(size(LOS), find(~isnan(LOS)));
         ylims=[floor(min(y)/10) * 10, ceil(max(y)/10) * 10];
         xlims=[floor(min(x)/10) * 10, ceil(max(x)/10) * 10];
+        if ylims(1) == 0
+            ylims(1) = 1;
+        end
+        if xlims(1) == 0
+            xlims(1) = 1;
+        end
         fprintf('%.0f/%.0f Writing GNSS LOS for %s to .grd...\n', ii, length(insar_id), insar_id{ii})
         grdwrite2(xx(1, xlims(1):xlims(2)), yy(ylims(1):ylims(2), 1), LOS(ylims(1):ylims(2),xlims(1):xlims(2)), [par.out_path 'GNSS' filesep insar_id{ii} '_GNSS_LOS.grd'])
     end

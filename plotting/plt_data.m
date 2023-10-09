@@ -28,7 +28,11 @@ if iscell(data) % if cell array
     
 elseif ndims(data) == 3 % if 3D array
     for ii = 1:size(data,3)
+        if iscell(lon)
+            imagesc(linspace(lonlim(1),lonlim(2),size(data,2)),linspace(latlim(1),latlim(2),size(data,1)),data(:,:,ii),'AlphaData',~isnan(data(:,:,ii)));
+        else
         imagesc(lon,lat,data(:,:,ii),'AlphaData',~isnan(data(:,:,ii)));
+        end
     end
     
 else % if 2D array

@@ -1,5 +1,5 @@
 function [m_east,m_up,var_east,var_up,model_corr,condG_threshold_mask,var_threshold_mask] ...
-    = vel_decomp(par,vel,vstd,compE,compN,compU,gnss_N,gnss_sN,both_coverage)
+    = vel_decomp(par,vel,vstd,compE,compN,compU,gnss_N,gnss_sN,gnss_E,gnss_sE,both_coverage)
 %=================================================================
 % function vel_decomp()
 %-----------------------------------------------------------------
@@ -92,9 +92,13 @@ for ii = 1:size(vel,1)
     end    
     
     % make components
-    if par.decomp_method == 0
+    if par.decomp_method == 0 || par.decomp_method == 3
         Qd = diag(vstd(ii,:));
         G = [compU(ii,:)' compE(ii,:)'];
+        d = vel(ii,:)';
+    elseif par.decomp_method == 4
+        Qd = diag(vstd(ii,:));
+        G = [compU(ii,:)'];
         d = vel(ii,:)';
     else
         if par.gnss_uncer == 1
@@ -131,14 +135,25 @@ for ii = 1:size(vel,1)
         continue
     end
     
-    % calculate model parameter correlation
-    model_corr(jj(ii),kk(ii)) = Qm(1,2)./(Qm(1,1).*Qm(2,2));
-    
-    % save
-    m_up(jj(ii),kk(ii)) = m(1);
-    m_east(jj(ii),kk(ii)) = m(2);    
-    var_up(jj(ii),kk(ii)) = Qm(1,1);
-    var_east(jj(ii),kk(ii)) = Qm(2,2);
+    if par.decomp_method ~= 4
+        % calculate model parameter correlation
+        model_corr(jj(ii),kk(ii)) = Qm(1,2)./(Qm(1,1).*Qm(2,2));
+        
+        % save
+        m_up(jj(ii),kk(ii)) = m(1);
+        m_east(jj(ii),kk(ii)) = m(2);
+        var_up(jj(ii),kk(ii)) = Qm(1,1);
+        var_east(jj(ii),kk(ii)) = Qm(2,2);
+    else
+        % calculate model parameter correlation
+        model_corr(jj(ii),kk(ii)) = Qm;
+        
+        % save
+        m_up(jj(ii),kk(ii)) = m;
+        m_east(jj(ii),kk(ii)) = gnss_E(jj(ii),kk(ii));
+        var_up(jj(ii),kk(ii)) = Qm(1,1);
+        var_east(jj(ii),kk(ii)) = gnss_sE(jj(ii),kk(ii));
+    end
     
 end
 

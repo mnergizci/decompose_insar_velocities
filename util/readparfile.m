@@ -86,6 +86,7 @@ par.refmask_min = getparval(cfgcell,'refmask_min',-10);
 par.refmask_max = getparval(cfgcell,'refmask_max',10);
 par.store_ref_planes = getparval(cfgcell,'store_ref_planes',[]);
 par.use_stored_ref_planes = getparval(cfgcell,'use_stored_ref_planes',[]);
+par.remove_linear_APS = getparval(cfgcell,'remove_linear_APS',0);
 
 % use mask
 par.use_mask = getparval(cfgcell,'use_mask',0);
@@ -135,12 +136,19 @@ par.save_grd = getparval(cfgcell,'save_grd',0);
 % save frames or tracks
 par.save_frames = getparval(cfgcell,'save_frames',0);
 
+% save inversion pngs
+par.save_png = getparval(cfgcell,'save_png',0);
+
 % save overlaps as text files for plotting histograms
 par.save_overlaps = getparval(cfgcell,'save_overlaps',0);
 
 % climits
 par.plt_cmin = getparval(cfgcell,'plt_cmin',-10);
 par.plt_cmax = getparval(cfgcell,'plt_cmax',10);
+
+% vertlimits
+par.plt_vmin = getparval(cfgcell,'plt_vmin',-10);
+par.plt_vmax = getparval(cfgcell,'plt_vmax',10);
 
 % plot faults
 par.plt_faults = getparval(cfgcell,'plt_faults',0);
@@ -187,6 +195,8 @@ par.plt_decomp_uncer = getparval(cfgcell,'plt_decomp_uncer',0);
 % plot var and cond(G) threshold masks
 par.plt_threshold_masks = getparval(cfgcell,'plt_threshold_masks',0);
 
+par.save_hgt = getparval(cfgcell,'save_hgt',0);
+
 %% insar
 
 % file identifiers
@@ -197,6 +207,7 @@ insarpar.id_n = getparval(cfgcell,'id_n','N');
 insarpar.id_u = getparval(cfgcell,'id_u','U');
 insarpar.id_mask = getparval(cfgcell,'id_mask','mask');
 insarpar.id_par = getparval(cfgcell,'id_par','par');
+insarpar.id_hgt = getparval(cfgcell,'id_hgt','hgt');
 
 % insar data
 insarpar.ninsarfile = sum(strcmp(cfgcell(:,1),'framedir'));

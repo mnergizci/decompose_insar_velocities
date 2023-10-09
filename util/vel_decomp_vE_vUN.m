@@ -135,18 +135,31 @@ disp([num2str(sum(var_threshold_mask,'all')) '/' num2str(npixels) ...
 
 %% decompose vUN into vU and vN
 
-% estimate vU for all frames/tracks
-UN2U = (sqrt(1 - sind(inc).^2 .* cosd(az).^2)) ./ cosd(inc);
-N2U = (sind(az).*sind(inc)) ./ cosd(inc);
-m_up = m_UN.*UN2U - gnss_N.*N2U;
-
-% same for the uncertainty
-if ~isempty(gnss_sN)
-    UN2U_var = (1 - sind(inc).^2 .* cosd(az).^2) ./ cosd(inc).^2;
-    N2U_var = ((sind(az).^2).*(sind(inc).^2)) ./ (cosd(inc).^2);
-    var_up = sqrt((var_UN.^2 .* UN2U_var) + ((gnss_sN.^2) .* N2U_var));
-else
-    var_up = ones(size(m_up));
+if par.decomp_method == 2
+    % estimate vU for all frames/tracks
+    UN2U = (sqrt(1 - sind(inc).^2 .* cosd(az).^2)) ./ cosd(inc);
+    N2U = (sind(az).*sind(inc)) ./ cosd(inc);
+    if ~isempty(gnss_N)
+        m_up = m_UN.*UN2U - gnss_N.*N2U;
+    else
+        m_up = m_UN.*UN2U;
+    end
+    
+    % same for the uncertainty
+    if ~isempty(gnss_sN)
+        UN2U_var = (1 - sind(inc).^2 .* cosd(az).^2) ./ cosd(inc).^2;
+        N2U_var = ((sind(az).^2).*(sind(inc).^2)) ./ (cosd(inc).^2);
+        var_up = sqrt((var_UN.^2 .* UN2U_var) + ((gnss_sN.^2) .* N2U_var));
+    elseif ~isempty(gnss_N)
+        var_up = ones(size(m_up));
+    else
+        UN2U_var = (1 - sind(inc).^2 .* cosd(az).^2) ./ cosd(inc).^2;
+        var_up = var_UN.^2 .* UN2U_var;
+    end
+    
+elseif par.decomp_method == 5
+    m_up = m_UN;
+    var_up = var_UN.^2;
 end
 
 % take the weighted mean

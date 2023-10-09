@@ -22,6 +22,10 @@ function decompose_insar_velocities(config_file)
 %
 % Andrew Watson     26-04-2021 (Original version)
 
+if nargin < 1
+    config_file = ['.', filesep, 'DIV.conf'];
+end
+
 disp('Beginning run')
 
 % add subdirectory paths
@@ -76,7 +80,7 @@ end
 
 % load main inputs
 [lon,lat,dx,dy,lon_comp,lat_comp,vel,vstd,compE,compN,compU,mask,poly_mask,frames,...
-    asc_frames_ind,desc_frames_ind,fault_trace,gnss,borders] = load_inputs(par,insarpar);
+    asc_frames_ind,desc_frames_ind,fault_trace,gnss,borders, hgt] = load_inputs(par,insarpar);
 
 % colour palettes  (https://www.fabiocrameri.ch/colourmaps/)
 load('vik.mat');
@@ -172,8 +176,8 @@ end
 disp('Unifying grids')
 
 [x_regrid,y_regrid,xx_regrid,yy_regrid,vel_regrid,vstd_regrid,...
-    mask_regrid,compE_regrid,compU_regrid,compN_regrid,gnss_E,gnss_N,gnss_sE,gnss_sN] ...
-    = unify_grids(par,lon,lat,lon_comp,lat_comp,dx,dy,vel,vstd,mask,compE,compU,compN,gnss);
+    mask_regrid,compE_regrid,compU_regrid,compN_regrid,gnss_E,gnss_N,gnss_sE,gnss_sN, gnss_U, gnss_sU, hgt] ...
+    = unify_grids(par,lon,lat,lon_comp,lat_comp,dx,dy,vel,vstd,mask,compE,compU,compN,gnss, hgt);
 
 % clear ungridded data
 clear vel vstd compE compN compU
@@ -201,9 +205,9 @@ if par.merge_tracks_along > 0
     
     disp('Merging frames along-track')
     
-    [vel_regrid,compE_regrid,compN_regrid,compU_regrid,vstd_regrid,tracks] ...
+    [vel_regrid,compE_regrid,compN_regrid,compU_regrid,vstd_regrid,tracks, hgt] ...
         = merge_frames_along_track(par,cpt,x_regrid,y_regrid,vel_regrid,...
-        frames,compE_regrid,compN_regrid,compU_regrid,vstd_regrid);
+        frames,compE_regrid,compN_regrid,compU_regrid,vstd_regrid, hgt);
     
     % update number of frames and indexes if frames have been merged
     if par.merge_tracks_along == 2
@@ -248,10 +252,39 @@ if par.ref2gnss == 1
 elseif par.ref2gnss == 2
     disp('Referencing InSAR to interpolated GNSS velocities')
     [vel_regrid, gnss] = ref_to_gnss_fields(par,cpt,xx_regrid,yy_regrid,vel_regrid,...
-        compE_regrid,compN_regrid,gnss_E,gnss_N,asc_frames_ind,desc_frames_ind,outdirs);
+        compE_regrid,compN_regrid,compU_regrid, gnss_E,gnss_N, gnss_U,asc_frames_ind,desc_frames_ind,outdirs, hgt);
+    
+elseif par.ref2gnss == 3
+    disp('Referencing InSAR to common pixel')
+    [vel_regrid, gnss_E, gnss_sE, gnss_N, gnss_sN, gnss_U, gnss_sU] = ...
+        ref_to_single_pixel(par,cpt,xx_regrid,yy_regrid,vel_regrid,gnss_E, gnss_sE, gnss_N, gnss_sN, gnss_U, gnss_sU);
     
 end
 
+%% preview inputs (again)
+
+if par.plt_input_vels == 1 && par.decomp_method == 4
+    
+    disp('Plotting preview of gnss stripped input velocities')
+        plt_asc_desc_cells(par,lon,lat,vel_regrid,mask_regrid,asc_frames_ind,...
+        desc_frames_ind,cpt.vik,[par.plt_cmin par.plt_cmax],borders,'GNSS Stripped velocities')
+elseif par.plt_input_vels == 1
+    disp('Plotting preview of gnss referenced input velocities')
+    
+    plt_asc_desc_cells(par,lon,lat,vel_regrid,mask,asc_frames_ind,...
+        desc_frames_ind,cpt.vik,[par.plt_cmin par.plt_cmax],borders,'GNSS Referenced Velocities',1)
+end
+
+
+save_for_comparison=1;
+if save_for_comparison == 1 && length(insarpar.dir) == 1
+    fprintf('Saving the referenced InSAR LOS\n')
+lonlim = [min(x_regrid) max(x_regrid)];
+latlim = [min(y_regrid) max(y_regrid)];
+grdwrite2(x_regrid,y_regrid,vel_regrid,[insarpar.dir{1}, filesep, 'LOSref.grd'])
+grdwrite2(x_regrid,y_regrid,gnss,[insarpar.dir{1}, filesep, 'gnssLOS.grd'])
+grdwrite2(x_regrid,y_regrid,vel_regrid - gnss,[insarpar.dir{1}, filesep, 'LOSref_gnss_diff.grd'])
+end
 %% calculate frame overlaps if requested
 
 if par.frame_overlaps == 1
@@ -285,32 +318,47 @@ if sum(both_coverage(:)) == 0
     error('No pixels with multiple look directions - did you provide more than one track?')
 end
 
-if par.decomp_method == 0 || par.decomp_method == 1
+if par.decomp_method == 0 || par.decomp_method == 1 || par.decomp_method == 3 || par.decomp_method == 4
     
     % either remove gnss N, and decompose into vE and vU, or include gnss N
     % in the linear problem, and solve for vE, vU, and vN
     disp('Solving directly for vE and vU')
     [m_east,m_up,var_east,var_up,model_corr,condG_threshold_mask,var_threshold_mask] ...
         = vel_decomp(par,vel_regrid,vstd_regrid,compE_regrid,compN_regrid,...
-        compU_regrid,gnss_N,gnss_sN,both_coverage);
+        compU_regrid,gnss_N,gnss_sN,gnss_E,gnss_sE, both_coverage);
 
-elseif par.decomp_method == 2
+elseif par.decomp_method == 2 || par.decomp_method == 5
     
     % decompose into vE and vUN, then split vUN into vU and vN (Qi's
     % method)
     disp('Solving for vE and vNU as intermediary step')
     [m_east,m_up,var_east,var_up,model_corr,condG_threshold_mask,var_threshold_mask] ...
         = vel_decomp_vE_vUN(par,vel_regrid,vstd_regrid,compE_regrid,compN_regrid,...
-        compU_regrid,gnss_N,gnss_sN,both_coverage);    
+        compU_regrid,gnss_N,gnss_sN,both_coverage);
 end
 
 %% plot output velocities
+
+par.out_prefix=sprintf('%s_ref%.0f-%.0f_decomp%.0f',par.out_prefix,par.ref2gnss,par.ref_type,par.decomp_method);
+
+if par.remove_linear_APS == 1
+    par.out_prefix = [par.out_prefix,'_APS'];
+end
+
+if par.plate_motion == 1
+    par.out_prefix = [par.out_prefix,'_PM'];
+end
+
+if par.use_mask == 1
+    par.out_prefix = [par.out_prefix,'_mask'];
+end
 
 disp('Plotting decomposed velocities')
 
 lonlim = [min(x_regrid) max(x_regrid)];
 latlim = [min(y_regrid) max(y_regrid)];
 clim = [par.plt_cmin par.plt_cmax];
+vlim = [par.plt_vmin par.plt_vmax];
 
 % East and vertical
 f = figure();
@@ -319,12 +367,28 @@ t = tiledlayout(1,2,'TileSpacing','compact');
 title(t,'Decomposed velocities')
 
 t(1) = nexttile; hold on
-plt_data(x_regrid,y_regrid,m_up,lonlim,latlim,clim,'Vertical (mm/yr)',fault_trace,borders)
+if par.decomp_method == 5
+    vtitle = 'vUN component (mm/yr)';
+else
+    vtitle = 'Vertical (mm/yr)';
+end
+plt_data(x_regrid,y_regrid,m_up,lonlim,latlim,vlim,vtitle,fault_trace,borders)
 colormap(t(1),cpt.vik)
 
 t(2) = nexttile; hold on
 plt_data(x_regrid,y_regrid,m_east,lonlim,latlim,clim,'East (mm/yr)',fault_trace,borders)
 colormap(t(2),cpt.vik)
+
+if par.save_png == 1
+    if ~isfolder(par.out_path)
+        mkdir(par.out_path)
+    end
+    if par.decomp_method == 5
+        saveas(f, [par.out_path par.out_prefix '_vEvUN.png'])
+    else
+        saveas(f, [par.out_path par.out_prefix '_vEvU.png'])
+    end
+end
 
 % North and  coverage
 f = figure();
@@ -339,6 +403,10 @@ t(4) = nexttile; hold on
 coverage = int8(sum(~isnan(vel_regrid),3));
 plt_data(x_regrid,y_regrid,coverage,lonlim,latlim,[],'Data coverage',fault_trace,borders)
 
+if par.save_png == 1
+    saveas(f, [par.out_path par.out_prefix '_vNcov.png'])
+end
+
 %% plot velocity uncertainties
 
 if par.plt_decomp_uncer == 1
@@ -347,7 +415,7 @@ if par.plt_decomp_uncer == 1
 
     lonlim = [min(x_regrid) max(x_regrid)];
     latlim = [min(y_regrid) max(y_regrid)];
-    clim = [0 2];
+    clim = [0 ceil(prctile([var_up(:); var_east(:)],95) / 2) * 2];
 
     f = figure();
     f.Position([1 3 4]) = [600 2000 800];
@@ -355,7 +423,7 @@ if par.plt_decomp_uncer == 1
     title(t,'Decomposed velocity uncertainties')
 
     t(1) = nexttile; hold on
-    plt_data(x_regrid,y_regrid,var_up,lonlim,latlim,clim,'Vertical (mm/yr)',fault_trace,borders)
+    plt_data(x_regrid,y_regrid,var_up,lonlim,latlim,clim,vtitle,fault_trace,borders)
     colormap(t(1),cpt.batlow)
 
     t(2) = nexttile; hold on
@@ -365,6 +433,14 @@ if par.plt_decomp_uncer == 1
     t(3) = nexttile; hold on
     plt_data(x_regrid,y_regrid,model_corr,lonlim,latlim,[-1 1],'Correlation (mm/yr)',fault_trace,borders)
     colormap(t(3),cpt.batlow)
+    
+    if par.save_png == 1
+        if par.decomp_method == 5
+            saveas(f, [par.out_path par.out_prefix '_sEsUN.png'])
+        else
+            saveas(f, [par.out_path par.out_prefix '_sEsU.png'])
+        end
+    end
 
 end
 
@@ -394,10 +470,19 @@ end
 % save geotiffs
 if par.save_geotif == 1
     
+    % create out directory
+    if ~isfolder(par.out_path)
+        mkdir(par.out_path)
+    end
+    
     disp('Saving the following outputs:')
-    disp([par.out_path par.out_prefix '_vU.geo.tif'])
     disp([par.out_path par.out_prefix '_vE.geo.tif'])
-    disp([par.out_path par.out_prefix '_vN.geo.tif'])
+    if par.decomp_method == 5
+        disp([par.out_path par.out_prefix '_vUN.geo.tif'])
+    else
+        disp([par.out_path par.out_prefix '_vU.geo.tif'])
+        disp([par.out_path par.out_prefix '_vN.geo.tif'])
+    end
     
     % create georeference
     georef = georefpostings([min(y_regrid) max(y_regrid)],...
@@ -405,34 +490,59 @@ if par.save_geotif == 1
         'RowsStartFrom','west');
     
     % write geotifs
-    geotiffwrite([par.out_path par.out_prefix '_vU.geo.tif'],m_up,georef)
+    
     geotiffwrite([par.out_path par.out_prefix '_vE.geo.tif'],m_east,georef)
-    geotiffwrite([par.out_path par.out_prefix '_sU.geo.tif'],var_up,georef)
     geotiffwrite([par.out_path par.out_prefix '_sE.geo.tif'],var_east,georef)
+    
+    if par.decomp_method == 5
+        geotiffwrite([par.out_path par.out_prefix '_vUN.geo.tif'],m_up,georef)
+        geotiffwrite([par.out_path par.out_prefix '_sUN.geo.tif'],var_up,georef)
+    else
+        geotiffwrite([par.out_path par.out_prefix '_vU.geo.tif'],m_up,georef)
+        geotiffwrite([par.out_path par.out_prefix '_sU.geo.tif'],var_up,georef)
+    end
     
     if exist('m_north','var')
         geotiffwrite([par.out_path par.out_prefix '_vN.geo.tif'],m_north,georef)
     end
     
+    copyfile(config_file, [par.out_path par.out_prefix '.conf'])
 end
 
 % save grd files
 if par.save_grd == 1
     
+    % create out directory
+    if ~isfolder(par.out_path)
+        mkdir(par.out_path)
+    end
+    
     disp('Saving the following outputs:')
-    disp([par.out_path par.out_prefix '_vU.grd'])
     disp([par.out_path par.out_prefix '_vE.grd'])
-    disp([par.out_path par.out_prefix '_vN.grd'])
+    if par.decomp_method == 5
+        disp([par.out_path par.out_prefix '_vUN.grd'])
+    else
+        disp([par.out_path par.out_prefix '_vU.grd'])
+    end
+    disp([par.out_path par.out_prefix '_mask.grd'])
     
     % write grd files
-    grdwrite2(x_regrid,y_regrid,m_up,[par.out_path par.out_prefix '_vU.grd']);
     grdwrite2(x_regrid,y_regrid,m_east,[par.out_path par.out_prefix '_vE.grd']);
-    grdwrite2(x_regrid,y_regrid,var_up,[par.out_path par.out_prefix '_sU.grd']);
     grdwrite2(x_regrid,y_regrid,var_east,[par.out_path par.out_prefix '_sE.grd']);
+    %grdwrite2(x_regrid,y_regrid,mask,[par.out_path par.out_prefix '_mask.grd']);
+    
+    if par.decomp_method == 5
+        grdwrite2(x_regrid,y_regrid,m_up,[par.out_path par.out_prefix '_vUN.grd'])
+        grdwrite2(x_regrid,y_regrid,var_up,[par.out_path par.out_prefix '_sUN.grd'])
+    else
+        grdwrite2(x_regrid,y_regrid,m_up,[par.out_path par.out_prefix '_vU.grd'])
+        grdwrite2(x_regrid,y_regrid,var_up,[par.out_path par.out_prefix '_sU.grd'])
+    end
     
     if exist('m_north','var')
+        disp([par.out_path par.out_prefix '_vN.grd'])
         grdwrite2(x_regrid,y_regrid,m_north,[par.out_path par.out_prefix '_vN.grd']);
-    end    
+    end
     
 end
 
@@ -481,6 +591,25 @@ if par.save_frames == 1
         
     end
     
+end
+
+if par.save_hgt == 1
+    disp([par.out_path 'hgt.grd'])
+    hgt(find(hgt==0)) = NaN;
+    hgt = nanmedian(hgt,3);
+    grdwrite2(x_regrid,y_regrid,hgt,[par.out_path 'hgt.grd']);
+end
+
+plot_invLOS = 0;
+
+if plot_invLOS == 1 && par.merge_tracks_along ~= 2 && par.ref2gnss ~= 0;
+    for ii=1:nframes
+        invlos = m_east .* compE_regrid(:,:,ii) + m_up .* compU_regrid(:,:,ii) + gnss_N .* compN_regrid(:,:,ii);
+        invlos(find(mask_regrid(:,:,ii) == 0)) = NaN;
+        figure()
+        plt_data(x_regrid,y_regrid,vel_regrid(:,:,ii) - invlos,lonlim,latlim,[-5 5],'LOS residual (mm/yr)',fault_trace,borders)
+        colormap(cpt.vik)
+    end
 end
 
 %% end
