@@ -21,9 +21,14 @@ function decompose_insar_velocities(config_file)
 % Written for matlab/2020a.
 %
 % Andrew Watson     26-04-2021 (Original version)
+%%
+close all
+clear;clc
+addpath(genpath('C:\Users\mmuha\OneDrive - University of Leeds\1.Phd_project\decompose_insar_velocities'));
+%%
 
 if nargin < 1
-    config_file = ['.', filesep, 'DIV.conf'];
+    config_file = ['.', filesep, 'EAF_TRrange.conf'];
 end
 
 disp('Beginning run')
@@ -359,6 +364,9 @@ lonlim = [min(x_regrid) max(x_regrid)];
 latlim = [min(y_regrid) max(y_regrid)];
 clim = [par.plt_cmin par.plt_cmax];
 vlim = [par.plt_vmin par.plt_vmax];
+p10 = prctile(m_up(~isnan(m_up)), 10);
+p90 = prctile(m_up(~isnan(m_up)), 90);
+vlim = [p10, p90];
 
 % East and vertical
 f = figure();
@@ -376,6 +384,9 @@ plt_data(x_regrid,y_regrid,m_up,lonlim,latlim,vlim,vtitle,fault_trace,borders)
 colormap(t(1),cpt.vik)
 
 t(2) = nexttile; hold on
+p10 = prctile(m_east(~isnan(m_east)), 10);
+p90 = prctile(m_east(~isnan(m_east)), 90);
+clim = [p10, p90];
 plt_data(x_regrid,y_regrid,m_east,lonlim,latlim,clim,'East (mm/yr)',fault_trace,borders)
 colormap(t(2),cpt.vik)
 
@@ -545,7 +556,7 @@ if par.save_grd == 1
     end
     
 end
-
+%% save frames
 % save frames / tracks
 if par.save_frames == 1
     % toggle between tracks and frames depending on if the merge has
@@ -581,11 +592,11 @@ if par.save_frames == 1
             'RowsStartFrom','west');    
         
         % write outputs
-        geotiffwrite(fullfile(par.out_path,outdirs{ii},'vel.geo.tif'),vel_regrid(y_ind,x_ind,ii),georef)
-        geotiffwrite(fullfile(par.out_path,outdirs{ii},'vstd.geo.tif'),vstd_regrid(y_ind,x_ind,ii),georef)
-        geotiffwrite(fullfile(par.out_path,outdirs{ii},'E.geo.tif'),compE_regrid(y_ind,x_ind,ii),georef)
-        geotiffwrite(fullfile(par.out_path,outdirs{ii},'N.geo.tif'),compN_regrid(y_ind,x_ind,ii),georef)
-        geotiffwrite(fullfile(par.out_path,outdirs{ii},'U.geo.tif'),compU_regrid(y_ind,x_ind,ii),georef)       
+        geotiffwrite(fullfile(par.out_path,outdirs{ii},[outdirs{ii}, '.vel.geo.tif']),vel_regrid(y_ind,x_ind,ii),georef)
+        geotiffwrite(fullfile(par.out_path,outdirs{ii},[outdirs{ii}, '.vstd.geo.tif']),vstd_regrid(y_ind,x_ind,ii),georef)
+        geotiffwrite(fullfile(par.out_path,outdirs{ii},[outdirs{ii}, '.E.geo.tif']),compE_regrid(y_ind,x_ind,ii),georef)
+        geotiffwrite(fullfile(par.out_path,outdirs{ii},[outdirs{ii}, '.N.geo.tif']),compN_regrid(y_ind,x_ind,ii),georef)
+        geotiffwrite(fullfile(par.out_path,outdirs{ii},[outdirs{ii}, '.U.geo.tif']),compU_regrid(y_ind,x_ind,ii),georef)       
         
         disp([outdirs{ii} ' saved.'])
         
@@ -599,7 +610,7 @@ if par.save_hgt == 1
     hgt = nanmedian(hgt,3);
     grdwrite2(x_regrid,y_regrid,hgt,[par.out_path 'hgt.grd']);
 end
-
+%%
 plot_invLOS = 0;
 
 if plot_invLOS == 1 && par.merge_tracks_along ~= 2 && par.ref2gnss ~= 0;

@@ -110,11 +110,16 @@ for ii = 1:size(vel,1)
         d = [vel(ii,:)'; gnss_N(ii)];
     end
 
-    % remove invalid pixels
-    invalid_pixels = find(isnan(d));
+    % remove NaNs in d, G, or Qd
+    invalid_pixels = isnan(d) | any(isnan(G), 2) | isnan(diag(Qd));
     d(invalid_pixels) = [];
     G(invalid_pixels,:) = [];
     Qd(invalid_pixels,:) = []; Qd(:,invalid_pixels) = [];
+
+    % skip if underdetermined (fewer equations than unknowns)
+    if size(G, 1) < size(G, 2)
+        continue
+    end
 
     % apply cond(G) threshold
     if par.condG_threshold > 0 && cond(G) > par.condG_threshold
@@ -123,10 +128,29 @@ for ii = 1:size(vel,1)
         continue
     end
 
-    % solve
-    W = inv(Qd);
-    m = (G'*W*G)^-1 * G'*W*d;
-    Qm = inv(G'*W*G);
+    % % solve
+    % W = inv(Qd);
+    % m = (G'*W*G)^-1 * G'*W*d;
+    % Qm = inv(G'*W*G);
+
+    try
+        W = inv(Qd);
+        GtWG = G' * W * G;
+    
+        % Check for conditioning
+        if rcond(GtWG) < 1e-12 || isnan(rcond(GtWG))
+            condG_threshold_mask(jj(ii), kk(ii)) = 1;
+            continue
+        end
+    
+        m = GtWG \ (G' * W * d);
+        Qm = inv(GtWG);
+    
+    catch
+        condG_threshold_mask(jj(ii), kk(ii)) = 1;
+        continue
+    end
+
 
     % apply model variance threshold
     if par.var_threshold > 0 && any(diag(Qm) > par.var_threshold)

@@ -53,53 +53,115 @@ compE_regrid = single(zeros(size(vel_regrid))); compN_regrid = single(zeros(size
 compU_regrid = single(zeros(size(vel_regrid)));
 hgt_regrid = single(zeros(size(vel_regrid)));
 
+% for ii = 1:nframes
+% 
+%     % reduce interpolation area using coords of frame
+%     [~,xind_min] = min(abs(x_regrid-lon{ii}(1)));
+%     [~,xind_max] = min(abs(x_regrid-lon{ii}(end)));
+%     [~,yind_min] = min(abs(y_regrid-lat{ii}(end)));
+%     [~,yind_max] = min(abs(y_regrid-lat{ii}(1)));    
+% 
+%     % interpolate vel, vstd, and optional mask
+%     [xx,yy] = meshgrid(lon{ii},lat{ii});
+%     vel_regrid(yind_min:yind_max,xind_min:xind_max,ii) ...
+%         = interp2(xx,yy,vel{ii},xx_regrid(yind_min:yind_max,xind_min:xind_max),...
+%         yy_regrid(yind_min:yind_max,xind_min:xind_max));
+% 
+%     vstd_regrid(yind_min:yind_max,xind_min:xind_max,ii) ...
+%         = interp2(xx,yy,vstd{ii},xx_regrid(yind_min:yind_max,xind_min:xind_max),...
+%         yy_regrid(yind_min:yind_max,xind_min:xind_max));
+% 
+%     if par.use_mask == 1 || par.use_mask == 3
+%         mask_regrid(yind_min:yind_max,xind_min:xind_max,ii) ...
+%             = interp2(xx,yy,mask{ii},xx_regrid(yind_min:yind_max,xind_min:xind_max),...
+%             yy_regrid(yind_min:yind_max,xind_min:xind_max));
+%     end
+% 
+%     % ENU may not be downsampled by licsbas, hence different xx yy grids
+%     [xx,yy] = meshgrid(lon_comp{ii},lat_comp{ii});
+%     compE_regrid(yind_min:yind_max,xind_min:xind_max,ii) ...
+%         = interp2(xx,yy,compE{ii},xx_regrid(yind_min:yind_max,xind_min:xind_max),...
+%         yy_regrid(yind_min:yind_max,xind_min:xind_max));
+%     compN_regrid(yind_min:yind_max,xind_min:xind_max,ii) ...
+%         = interp2(xx,yy,compN{ii},xx_regrid(yind_min:yind_max,xind_min:xind_max),...
+%         yy_regrid(yind_min:yind_max,xind_min:xind_max));
+%     compU_regrid(yind_min:yind_max,xind_min:xind_max,ii) ...
+%         = interp2(xx,yy,compU{ii},xx_regrid(yind_min:yind_max,xind_min:xind_max),...
+%         yy_regrid(yind_min:yind_max,xind_min:xind_max));
+%     if par.save_hgt == 1 || par.remove_linear_APS > 0
+%         hgt_regrid(yind_min:yind_max,xind_min:xind_max,ii) ...
+%             = interp2(xx,yy,hgt{ii},xx_regrid(yind_min:yind_max,xind_min:xind_max),...
+%             yy_regrid(yind_min:yind_max,xind_min:xind_max));
+%     end
+% 
+%     % report progress
+%     if (mod(ii,round(nframes./10))) == 0
+%         disp([num2str(round((ii./nframes)*100)) '% completed']);
+%     end
+% 
+% end
+
 for ii = 1:nframes
+
+    % Get original lon/lat and data grids
+    [xx, yy] = meshgrid(lon{ii}, lat{ii});
+    x_flat = xx(:);
+    y_flat = yy(:);
     
-    % reduce interpolation area using coords of frame
-    [~,xind_min] = min(abs(x_regrid-lon{ii}(1)));
-    [~,xind_max] = min(abs(x_regrid-lon{ii}(end)));
-    [~,yind_min] = min(abs(y_regrid-lat{ii}(end)));
-    [~,yind_max] = min(abs(y_regrid-lat{ii}(1)));    
-    
-    % interpolate vel, vstd, and optional mask
-    [xx,yy] = meshgrid(lon{ii},lat{ii});
-    vel_regrid(yind_min:yind_max,xind_min:xind_max,ii) ...
-        = interp2(xx,yy,vel{ii},xx_regrid(yind_min:yind_max,xind_min:xind_max),...
-        yy_regrid(yind_min:yind_max,xind_min:xind_max));
-    
-    vstd_regrid(yind_min:yind_max,xind_min:xind_max,ii) ...
-        = interp2(xx,yy,vstd{ii},xx_regrid(yind_min:yind_max,xind_min:xind_max),...
-        yy_regrid(yind_min:yind_max,xind_min:xind_max));
-    
+    % Flatten all data arrays
+    vel_flat  = vel{ii}(:);
+    vstd_flat = vstd{ii}(:);
     if par.use_mask == 1 || par.use_mask == 3
-        mask_regrid(yind_min:yind_max,xind_min:xind_max,ii) ...
-            = interp2(xx,yy,mask{ii},xx_regrid(yind_min:yind_max,xind_min:xind_max),...
-            yy_regrid(yind_min:yind_max,xind_min:xind_max));
+        mask_flat = mask{ii}(:);
     end
-    
-    % ENU may not be downsampled by licsbas, hence different xx yy grids
-    [xx,yy] = meshgrid(lon_comp{ii},lat_comp{ii});
-    compE_regrid(yind_min:yind_max,xind_min:xind_max,ii) ...
-        = interp2(xx,yy,compE{ii},xx_regrid(yind_min:yind_max,xind_min:xind_max),...
-        yy_regrid(yind_min:yind_max,xind_min:xind_max));
-    compN_regrid(yind_min:yind_max,xind_min:xind_max,ii) ...
-        = interp2(xx,yy,compN{ii},xx_regrid(yind_min:yind_max,xind_min:xind_max),...
-        yy_regrid(yind_min:yind_max,xind_min:xind_max));
-    compU_regrid(yind_min:yind_max,xind_min:xind_max,ii) ...
-        = interp2(xx,yy,compU{ii},xx_regrid(yind_min:yind_max,xind_min:xind_max),...
-        yy_regrid(yind_min:yind_max,xind_min:xind_max));
+
+    % Find closest indices on regrid for each pixel
+    [~, xi] = min(abs(x_regrid' - x_flat'), [], 1);  % size: [1 x N]
+    [~, yi] = min(abs(y_regrid' - y_flat'), [], 1);  % size: [1 x N]
+
+    % Loop over valid (non-NaN) values
+    for k = 1:length(vel_flat)
+        if ~isnan(vel_flat(k))
+            vel_regrid(yi(k), xi(k), ii) = vel_flat(k);
+            vstd_regrid(yi(k), xi(k), ii) = vstd_flat(k);
+            if par.use_mask == 1 || par.use_mask == 3
+                mask_regrid(yi(k), xi(k), ii) = mask_flat(k);
+            end
+        end
+    end
+
+    % ENU component: use lon_comp/lat_comp grid
+    [xxc, yyc] = meshgrid(lon_comp{ii}, lat_comp{ii});
+    xc_flat = xxc(:);
+    yc_flat = yyc(:);
+    compE_flat = compE{ii}(:);
+    compN_flat = compN{ii}(:);
+    compU_flat = compU{ii}(:);
     if par.save_hgt == 1 || par.remove_linear_APS > 0
-        hgt_regrid(yind_min:yind_max,xind_min:xind_max,ii) ...
-            = interp2(xx,yy,hgt{ii},xx_regrid(yind_min:yind_max,xind_min:xind_max),...
-            yy_regrid(yind_min:yind_max,xind_min:xind_max));
+        hgt_flat = hgt{ii}(:);
     end
-    
-    % report progress
-    if (mod(ii,round(nframes./10))) == 0
-        disp([num2str(round((ii./nframes)*100)) '% completed']);
+
+    [~, xci] = min(abs(x_regrid' - xc_flat'), [], 1);
+    [~, yci] = min(abs(y_regrid' - yc_flat'), [], 1);
+
+    for k = 1:length(compE_flat)
+        if ~isnan(compE_flat(k))
+            compE_regrid(yci(k), xci(k), ii) = compE_flat(k);
+            compN_regrid(yci(k), xci(k), ii) = compN_flat(k);
+            compU_regrid(yci(k), xci(k), ii) = compU_flat(k);
+            if par.save_hgt == 1 || par.remove_linear_APS > 0
+                hgt_regrid(yci(k), xci(k), ii) = hgt_flat(k);
+            end
+        end
     end
-    
+
+    % Progress
+    if mod(ii, round(nframes / 10)) == 0
+        disp([num2str(round(ii / nframes * 100)), '% completed']);
+    end
+
 end
+
 
 % crop regrid coords to area with valid pixels
 if par.auto_regrid == 0 && par.crop_post_regrid == 1
@@ -122,39 +184,73 @@ if par.auto_regrid == 0 && par.crop_post_regrid == 1
     yy_regrid = yy_regrid(y_ind,x_ind);
 end
 
-%% interpolate GNSS
-
-% resample gnss
-if isfield(gnss,'x')
-    [xx_gnss,yy_gnss] = meshgrid(gnss.x,gnss.y);
-    gnss_E = interp2(xx_gnss,yy_gnss,gnss.E,xx_regrid,yy_regrid, 'linear',0);
-    gnss_N = interp2(xx_gnss,yy_gnss,gnss.N,xx_regrid,yy_regrid, 'linear',0);
-    if isfield(gnss, 'U')
-        gnss_U = interp2(xx_gnss,yy_gnss,gnss.U,xx_regrid,yy_regrid, 'linear',0);
-    else
-        gnss_U = [];
-    end
-    
-    % resample gnss uncertainties if using
-    if par.gnss_uncer == 1
-        gnss_sE = interp2(xx_gnss,yy_gnss,gnss.sE,xx_regrid,yy_regrid, 'linear',1e6);
-        gnss_sN = interp2(xx_gnss,yy_gnss,gnss.sN,xx_regrid,yy_regrid, 'linear',1e6);
+%% Interpolate GNSS
+if isfield(gnss, 'x')
+    if isvector(gnss.x) && isvector(gnss.y) && length(gnss.x) == length(gnss.y)
+        % === Scattered GNSS points (1D vector) ===
+        F_E = scatteredInterpolant(gnss.x, gnss.y, gnss.E, 'linear', 'none');
+        F_N = scatteredInterpolant(gnss.x, gnss.y, gnss.N, 'linear', 'none');
+        gnss_E = F_E(xx_regrid, yy_regrid);
+        gnss_N = F_N(xx_regrid, yy_regrid);
+        
         if isfield(gnss, 'U')
-            gnss_sU = interp2(xx_gnss,yy_gnss,gnss.sU,xx_regrid,yy_regrid, 'linear',1e6);
+            F_U = scatteredInterpolant(gnss.x, gnss.y, gnss.U, 'linear', 'none');
+            gnss_U = F_U(xx_regrid, yy_regrid);
         else
+            gnss_U = [];
+        end
+
+        if par.gnss_uncer == 1
+            F_sE = scatteredInterpolant(gnss.x, gnss.y, gnss.sE, 'linear', 1e6);
+            F_sN = scatteredInterpolant(gnss.x, gnss.y, gnss.sN, 'linear', 1e6);
+            gnss_sE = F_sE(xx_regrid, yy_regrid);
+            gnss_sN = F_sN(xx_regrid, yy_regrid);
+
+            if isfield(gnss, 'sU')
+                F_sU = scatteredInterpolant(gnss.x, gnss.y, gnss.sU, 'linear', 1e6);
+                gnss_sU = F_sU(xx_regrid, yy_regrid);
+            else
+                gnss_sU = [];
+            end
+        else
+            gnss_sE = [];
+            gnss_sN = [];
             gnss_sU = [];
         end
+
     else
-        gnss_sE = [];
-        gnss_sN = [];
-        gnss_sU = [];
+        % === Gridded GNSS points (2D) ===
+        [xx_gnss, yy_gnss] = meshgrid(gnss.x, gnss.y);
+        gnss_E = interp2(xx_gnss, yy_gnss, gnss.E, xx_regrid, yy_regrid, 'linear', 0);
+        gnss_N = interp2(xx_gnss, yy_gnss, gnss.N, xx_regrid, yy_regrid, 'linear', 0);
+
+        if isfield(gnss, 'U')
+            gnss_U = interp2(xx_gnss, yy_gnss, gnss.U, xx_regrid, yy_regrid, 'linear', 0);
+        else
+            gnss_U = [];
+        end
+
+        if par.gnss_uncer == 1
+            gnss_sE = interp2(xx_gnss, yy_gnss, gnss.sE, xx_regrid, yy_regrid, 'linear', 1e6);
+            gnss_sN = interp2(xx_gnss, yy_gnss, gnss.sN, xx_regrid, yy_regrid, 'linear', 1e6);
+            if isfield(gnss, 'sU')
+                gnss_sU = interp2(xx_gnss, yy_gnss, gnss.sU, xx_regrid, yy_regrid, 'linear', 1e6);
+            else
+                gnss_sU = [];
+            end
+        else
+            gnss_sE = [];
+            gnss_sN = [];
+            gnss_sU = [];
+        end
     end
-elseif isempty(gnss)
+else
+    % Empty GNSS case
     gnss_E = [];
     gnss_N = [];
+    gnss_U = [];
     gnss_sE = [];
     gnss_sN = [];
-    gnss_U = [];
     gnss_sU = [];
 end
 

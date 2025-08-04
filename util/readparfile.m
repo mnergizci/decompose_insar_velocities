@@ -143,8 +143,8 @@ par.save_png = getparval(cfgcell,'save_png',0);
 par.save_overlaps = getparval(cfgcell,'save_overlaps',0);
 
 % climits
-par.plt_cmin = getparval(cfgcell,'plt_cmin',-10);
-par.plt_cmax = getparval(cfgcell,'plt_cmax',10);
+par.plt_cmin = getparval(cfgcell,'plt_cmin',-20);
+par.plt_cmax = getparval(cfgcell,'plt_cmax',20);
 
 % vertlimits
 par.plt_vmin = getparval(cfgcell,'plt_vmin',-10);

@@ -9,7 +9,7 @@
 para_cores: 0
 
 % scale input velocity uncertainties (0 disables)
-scale_vstd: 0
+scale_vstd: 1
 
 % scaling function (sph=spherical, exp=exponential)
 scale_vstd_model: exp
@@ -24,7 +24,7 @@ ref_type: 2
 ref_poly_order: 2
 
 % window size of filter if used, in pixels, must be odd [ref2gnss=2]
-ref_filter_window_size: 25
+ref_filter_window_size: 51
 
 % radius of vels around each gnss stations to use (same coordinate units as input vels)
 ref_station_radius: 0.05

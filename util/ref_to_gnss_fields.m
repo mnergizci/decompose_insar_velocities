@@ -67,7 +67,7 @@ if ~ismissing(par.use_stored_ref_planes)
     end
 end
 
-if ismissing(par.use_stored_ref_planes)
+if  ~isfield(par, 'use_stored_ref_planes') || isempty(par.use_stored_ref_planes)
     % pre-allocate
         gnss_resid_plane = zeros([size(xx) nframes]);
         gnss_los = zeros([size(xx) nframes]);
@@ -82,7 +82,7 @@ for ii = 1:nframes
         disp(['Layer ' num2str(ii) ' of vel is empty after masking, skipping referencing'])
         continue
     end
-    if ismissing(par.use_stored_ref_planes)
+    if ~isfield(par, 'use_stored_ref_planes') || isempty(par.use_stored_ref_planes)
 
         % for plotting
         if par.plt_ref_gnss_indv == 1
